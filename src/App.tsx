@@ -7,6 +7,9 @@ import React, { useState, useEffect } from 'react';
 const USE_MOCK_DATA = false; 
 const POWER_AUTOMATE_URL = ""; 
 
+// --- CONFIGURAÇÃO DE SEGURANÇA ---
+const APP_PASSWORD = "pr3m42026"; // <--- ALTERE SUA SENHA AQUI
+
 // --- ÍCONES (SVG Nativos) ---
 const IconBase = ({ children, className }: { children: React.ReactNode; className?: string }) => (
   <svg 
@@ -29,6 +32,8 @@ const ChevronLeft = ({ className }: { className?: string }) => <IconBase classNa
 const Calendar = ({ className }: { className?: string }) => <IconBase className={className}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><path d="M16 2v4M8 2v4M3 10h18"/></IconBase>;
 const List = ({ className }: { className?: string }) => <IconBase className={className}><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></IconBase>;
 const Search = ({ className }: { className?: string }) => <IconBase className={className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></IconBase>;
+const Lock = ({ className }: { className?: string }) => <IconBase className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></IconBase>;
+const LogOut = ({ className }: { className?: string }) => <IconBase className={className}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></IconBase>;
 
 // Link do Logotipo FIXO
 const PREMA_LOGO_URL = 'https://prematelhados.com.br/wp-content/uploads/2018/09/TELHADOS1.png';
@@ -61,7 +66,6 @@ interface CompanyInfo {
 }
 
 // --- DADOS DO CATÁLOGO (MOCK) ---
-// Adicione ou edite seus itens padrão aqui:
 const MOCK_SHAREPOINT_CATALOG: OrcamentoItem[] = [
     { id: 'sp-1', type: 'service', description: 'Consultoria de Projetos', quantity: 1, unit: 'un', unitPrice: 2500 },
     { id: 'sp-2', type: 'material', description: 'Telhas Metálicas Termoacústicas', quantity: 1, unit: 'm²', unitPrice: 180.50 },
@@ -73,7 +77,6 @@ let currentCatalog = [...MOCK_SHAREPOINT_CATALOG];
 
 // --- FUNÇÃO DE BUSCA ---
 const fetchCatalog = async (): Promise<OrcamentoItem[]> => {
-    // Se estiver em modo MOCK ou sem URL, carrega localmente e não dá erro.
     if (USE_MOCK_DATA || !POWER_AUTOMATE_URL) {
         console.log("Modo Offline (ou URL vazia): Carregando catálogo local.");
         return new Promise(resolve => {
@@ -107,14 +110,19 @@ const fetchCatalog = async (): Promise<OrcamentoItem[]> => {
         return [];
     } catch (error) {
         console.warn("API indisponível (Erro de conexão ou licença). Usando dados locais como backup.", error);
-        return currentCatalog; // Fallback silencioso para não quebrar a tela
+        return currentCatalog;
     }
 };
 
 // --- COMPONENTE PRINCIPAL ---
 
 export default function App() {
-  // --- Estados ---
+  // --- Estados de Autenticação ---
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [loginError, setLoginError] = useState('');
+
+  // --- Estados do App ---
   const [view, setView] = useState<'editor' | 'preview'>('editor');
   const [discount, setDiscount] = useState<number>(0);
   const [validityDays, setValidityDays] = useState<number>(15);
@@ -150,8 +158,9 @@ export default function App() {
     unitPrice: 0
   });
 
-  // --- AUTO-INJEÇÃO DE ESTILOS ---
+  // --- EFEITOS (Auth e Styles) ---
   useEffect(() => {
+    // Injeção de Tailwind
     const scriptId = 'tailwind-cdn-script';
     if (!document.getElementById(scriptId)) {
         const script = document.createElement('script');
@@ -159,23 +168,93 @@ export default function App() {
         script.src = "https://cdn.tailwindcss.com";
         document.head.appendChild(script);
     }
+
+    // Verifica login salvo
+    const savedAuth = localStorage.getItem('prema_auth');
+    if (savedAuth === 'true') {
+        setIsAuthenticated(true);
+    }
   }, []);
   
-  // --- Carregamento ---
+  // Carregamento de dados (só roda se autenticado)
   useEffect(() => {
-    setIsSharePointReady(false);
-    fetchCatalog()
-      .then(data => {
-        setCatalogItems(data);
-        setIsSharePointReady(true);
-      })
-      .catch(e => {
-        console.error("ERRO GERAL:", e);
-        setIsSharePointReady(true);
-      });
-  }, []); 
+    if (isAuthenticated) {
+        setIsSharePointReady(false);
+        fetchCatalog()
+          .then(data => {
+            setCatalogItems(data);
+            setIsSharePointReady(true);
+          })
+          .catch(e => {
+            console.error("ERRO GERAL:", e);
+            setIsSharePointReady(true);
+          });
+    }
+  }, [isAuthenticated]); 
 
-  // --- Cálculos ---
+  // --- Lógica de Login ---
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput === APP_PASSWORD) {
+        setIsAuthenticated(true);
+        localStorage.setItem('prema_auth', 'true');
+        setLoginError('');
+    } else {
+        setLoginError('Senha incorreta. Tente novamente.');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem('prema_auth');
+    setPasswordInput('');
+  };
+
+  // --- TELA DE LOGIN ---
+  if (!isAuthenticated) {
+    return (
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans text-slate-800">
+            {/* Styles injetados manualmente para o Login caso o Tailwind demore a carregar */}
+            <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200 text-center">
+                <div className="flex justify-center mb-6">
+                    <div className="p-4 bg-blue-50 rounded-full">
+                        <Lock className="w-8 h-8 text-blue-600" />
+                    </div>
+                </div>
+                <h1 className="text-2xl font-bold text-slate-800 mb-2">Orçamentos Prema</h1>
+                <p className="text-slate-500 text-sm mb-6">Área restrita para vendedores autorizados.</p>
+                
+                <form onSubmit={handleLogin} className="space-y-4">
+                    <div>
+                        <input 
+                            type="password" 
+                            placeholder="Senha de Acesso"
+                            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            value={passwordInput}
+                            onChange={(e) => setPasswordInput(e.target.value)}
+                        />
+                    </div>
+                    
+                    {loginError && (
+                        <p className="text-red-500 text-sm font-medium">{loginError}</p>
+                    )}
+
+                    <button 
+                        type="submit"
+                        className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 rounded-lg transition shadow-md hover:shadow-lg transform active:scale-95"
+                    >
+                        Entrar no Sistema
+                    </button>
+                </form>
+                <div className="mt-6 text-xs text-slate-400">
+                    &copy; {new Date().getFullYear()} Prema Telhados
+                </div>
+            </div>
+        </div>
+    );
+  }
+
+  // --- CÁLCULOS DO APP ---
   const getEffectiveUnitPrice = (item: OrcamentoItem) => {
     if (item.type === 'material') {
       return item.unitPrice * 1.5;
@@ -212,7 +291,6 @@ export default function App() {
   const addItem = () => {
     if (!newItem.description || !newItem.unitPrice) return;
     
-    // Cria item LOCAL para este orçamento apenas
     const item: OrcamentoItem = {
       id: Math.random().toString(36).substr(2, 9),
       type: newItem.type as ItemType || 'service',
@@ -247,7 +325,7 @@ export default function App() {
     window.print();
   };
 
-  // --- Renderização ---
+  // --- Renderização PRINCIPAL ---
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-800">
@@ -291,7 +369,7 @@ export default function App() {
             <LayoutTemplate className="w-6 h-6" />
             <h1 className="text-xl font-bold">Orçamentos Prema</h1>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center">
             <button 
               onClick={() => setView('editor')}
               className={`px-4 py-2 rounded-lg flex items-center gap-2 transition ${view === 'editor' ? 'bg-white text-blue-700 font-bold' : 'hover:bg-blue-600'}`}
@@ -302,7 +380,16 @@ export default function App() {
               onClick={() => setView('preview')}
               className={`px-4 py-2 rounded-lg flex items-center gap-2 transition ${view === 'preview' ? 'bg-white text-blue-700 font-bold' : 'hover:bg-blue-600'}`}
             >
-              <FileText className="w-4 h-4" /> Visualizar Proposta
+              <FileText className="w-4 h-4" /> Visualizar
+            </button>
+            
+            {/* Botão Sair */}
+            <button 
+                onClick={handleLogout}
+                className="ml-2 p-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition flex items-center gap-1"
+                title="Sair"
+            >
+                <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -516,7 +603,7 @@ export default function App() {
                 )}
               </div>
               
-              {/* Resumo Financeiro e Tabela (Mantidos iguais) */}
+              {/* Resumo Financeiro e Tabela */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                   <p className="text-sm text-blue-600 font-medium">Serviços</p>
@@ -632,7 +719,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- VIEW: PREVIEW --- */}
+        {/* --- VIEW: PREVIEW (SIMULAÇÃO DE PAPEL A4) --- */}
         {view === 'preview' && (
           <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
             
