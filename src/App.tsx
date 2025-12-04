@@ -8,7 +8,7 @@ const USE_MOCK_DATA = false;
 const POWER_AUTOMATE_URL = "https://2c32e22e09dee2c482b4bd6effc833.e9.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/24408d1a4248438da7c6e232dc438e3c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dF-gNLh16xJGLebM3huqCF5nT00EwyxMYvX-ml1Kklg"; 
 
 // --- CONFIGURAÇÃO DE SEGURANÇA ---
-const APP_PASSWORD = "prema123"; // <--- SENHA DE ACESSO
+const APP_PASSWORD = "pr3m42026"; // <--- SENHA DE ACESSO
 
 // --- ÍCONES (SVG Nativos) ---
 const IconBase = ({ children, className }: { children: React.ReactNode; className?: string }) => (
