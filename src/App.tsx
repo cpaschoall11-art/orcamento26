@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 
 // --- CONFIGURAÇÃO ---
-// ATENÇÃO: Modo Premium Ativado.
-// 1. USE_MOCK_DATA = false: O app vai tentar conectar na internet.
-// 2. Cole a URL do seu fluxo Premium (Gatilho 'Request') abaixo.
+// ATENÇÃO: Modo Premium Ativado com URL Real.
+// 1. USE_MOCK_DATA = false: O app vai conectar na internet.
+// 2. URL Configurada com a assinatura de segurança (&sig).
 const USE_MOCK_DATA = false; 
-const POWER_AUTOMATE_URL = ""; 
+const POWER_AUTOMATE_URL = "https://2c32e22e09dee2c482b4bd6effc833.e9.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/24408d1a4248438da7c6e232dc438e3c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dF-gNLh16xJGLebM3huqCF5nT00EwyxMYvX-ml1Kklg"; 
 
 // --- CONFIGURAÇÃO DE SEGURANÇA ---
-const APP_PASSWORD = "pr3m42026"; // <--- ALTERE SUA SENHA AQUI
+const APP_PASSWORD = "prema123"; // <--- SENHA DE ACESSO
 
 // --- ÍCONES (SVG Nativos) ---
 const IconBase = ({ children, className }: { children: React.ReactNode; className?: string }) => (
@@ -65,7 +65,7 @@ interface CompanyInfo {
   terms: string;
 }
 
-// --- DADOS DO CATÁLOGO (MOCK) ---
+// --- DADOS DO CATÁLOGO (MOCK - FALLBACK) ---
 const MOCK_SHAREPOINT_CATALOG: OrcamentoItem[] = [
     { id: 'sp-1', type: 'service', description: 'Consultoria de Projetos', quantity: 1, unit: 'un', unitPrice: 2500 },
     { id: 'sp-2', type: 'material', description: 'Telhas Metálicas Termoacústicas', quantity: 1, unit: 'm²', unitPrice: 180.50 },
@@ -91,7 +91,9 @@ const fetchCatalog = async (): Promise<OrcamentoItem[]> => {
         const response = await fetch(POWER_AUTOMATE_URL);
         
         if (!response.ok) {
-            throw new Error(`Status ${response.status}`);
+            // Tenta ler o erro
+            const errorText = await response.text();
+            throw new Error(`Status ${response.status}: ${errorText}`);
         }
 
         const data = await response.json();
@@ -99,18 +101,20 @@ const fetchCatalog = async (): Promise<OrcamentoItem[]> => {
         if (data && data.value) {
             const itemsDoSharePoint = data.value.map((item: any) => ({
                 id: String(item.ID),
+                // Lógica de mapeamento robusta para o campo TIPO/ITEM
                 type: (item.Item && item.Item.Value ? item.Item.Value.toLowerCase() : (typeof item.Item === 'string' ? item.Item.toLowerCase() : 'service')),
                 description: item.Title || 'Item sem descrição',
                 quantity: 1,
                 unit: item.Unidade || 'un',
                 unitPrice: Number(item.Preco) || 0
             }));
+            console.log("SUCESSO: Catálogo carregado do SharePoint Real!", itemsDoSharePoint);
             return itemsDoSharePoint;
         }
         return [];
     } catch (error) {
         console.warn("API indisponível (Erro de conexão ou licença). Usando dados locais como backup.", error);
-        return currentCatalog;
+        return currentCatalog; // Fallback silencioso
     }
 };
 
@@ -214,7 +218,6 @@ export default function App() {
   if (!isAuthenticated) {
     return (
         <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans text-slate-800">
-            {/* Styles injetados manualmente para o Login caso o Tailwind demore a carregar */}
             <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200 text-center">
                 <div className="flex justify-center mb-6">
                     <div className="p-4 bg-blue-50 rounded-full">
@@ -603,7 +606,7 @@ export default function App() {
                 )}
               </div>
               
-              {/* Resumo Financeiro e Tabela */}
+              {/* Resumo Financeiro e Tabela (Mantidos iguais) */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                   <p className="text-sm text-blue-600 font-medium">Serviços</p>
@@ -713,197 +716,6 @@ export default function App() {
                   onChange={e => setCompany({...company, terms: e.target.value})}
                   placeholder="Digite as condições de pagamento, prazos de entrega, etc."
                 />
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* --- VIEW: PREVIEW (SIMULAÇÃO DE PAPEL A4) --- */}
-        {view === 'preview' && (
-          <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
-            
-            <div className="no-print w-full flex justify-between items-center mb-6 bg-slate-200 p-4 rounded-lg">
-              <button onClick={() => setView('editor')} className="text-slate-600 hover:text-slate-900 flex items-center gap-2 font-medium">
-                <ChevronLeft className="w-4 h-4" /> Voltar para Edição
-              </button>
-              <div className="text-slate-600 text-sm">
-                Esta é uma prévia. Clique em imprimir para gerar o PDF.
-              </div>
-              <button 
-                onClick={handlePrint}
-                className="bg-blue-700 hover:bg-blue-800 text-white px-6 py-2 rounded-lg font-bold shadow-lg flex items-center gap-2 transition transform hover:scale-105"
-              >
-                <Printer className="w-5 h-5" /> Imprimir / Salvar PDF
-              </button>
-            </div>
-
-            <div className="A4-container bg-white w-[210mm] min-h-[297mm] p-[20mm] shadow-2xl mx-auto relative text-slate-900 leading-normal">
-              
-              <div className="border-b-2 border-slate-800 pb-6 mb-8 flex justify-between">
-                
-                <div className="flex flex-col items-start max-w-[65%]">
-                  <div className="w-36 h-18 mb-1 overflow-hidden flex items-center justify-start">
-                    <img 
-                      src={PREMA_LOGO_URL} 
-                      alt="Logo da Empresa" 
-                      className="w-full h-full object-contain" 
-                      onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  </div>
-                  
-                  <div className="text-left mt-0 pt-0"> 
-                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{company.contact}</p>
-                  </div>
-                </div>
-                
-                <div className="text-right mt-[-40px]"> 
-                  <h1 className="text-2xl font-bold uppercase tracking-wider text-slate-800 mb-2">ORÇAMENTO</h1>
-                  <p className="text-sm text-slate-500">Nº {Math.floor(Math.random() * 10000)}</p>
-                  
-                  <div className="mt-2 justify-end">
-                     <div className="text-right">
-                        <p className="text-[10px] text-green-600 uppercase font-bold">Válido Até</p>
-                        <p className="text-sm font-bold text-green-800">{getExpirationDate()}</p>
-                     </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded border border-slate-200 mb-8 page-break">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Preparado para</h3>
-                <div className="text-sm">
-                  {client.company ? (
-                    <>
-                      <p className="font-bold text-lg text-slate-800">{client.company}</p>
-                      {client.name && <p className="text-slate-600 mt-1">A/C: {client.name}</p>}
-                    </>
-                  ) : (
-                    <p className="font-bold text-lg text-slate-800">{client.name || 'Cliente Não Informado'}</p>
-                  )}
-                  
-                  {client.document && <p className="text-slate-600 mt-1">CPF/CNPJ: {client.document}</p>}
-                  {client.address && <p className="text-slate-600">{client.address}</p>}
-                  {(client.phone || client.email) && (
-                    <p className="text-slate-600 mt-1">{client.phone} • {client.email}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="mb-8">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b-2 border-slate-800 text-slate-800">
-                      <th className="text-left py-2">Descrição</th>
-                      <th className="text-center py-2 w-24">Qtd</th>
-                      <th className="text-right py-2 w-32">Preço Unit.</th>
-                      <th className="text-right py-2 w-32">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {items.some(i => i.type === 'service') && (
-                       <>
-                        <tr className="bg-slate-100 font-bold text-xs uppercase text-slate-500">
-                          <td colSpan={4} className="py-2 px-2 mt-2">Mão de Obra / Serviços</td>
-                        </tr>
-                        {items.filter(i => i.type === 'service').map(item => (
-                          <tr key={item.id}>
-                            <td className="py-3 pr-2 align-top">{item.description}</td>
-                            <td className="py-3 text-center align-top">{item.quantity} {item.unit}</td>
-                            <td className="py-3 text-right align-top">{formatCurrency(item.unitPrice)}</td>
-                            <td className="py-3 text-right font-medium align-top">{formatCurrency(calculateTotal(item))}</td>
-                          </tr>
-                        ))}
-                       </>
-                    )}
-
-                    {items.some(i => i.type === 'material') && (
-                       <>
-                        <tr className="bg-slate-100 font-bold text-xs uppercase text-slate-500">
-                          <td colSpan={4} className="py-2 px-2 mt-4">Materiais / Insumos</td>
-                        </tr>
-                        {items.filter(i => i.type === 'material').map(item => (
-                          <tr key={item.id}>
-                            <td className="py-3 pr-2 align-top">{item.description}</td>
-                            <td className="py-3 text-center align-top">{item.quantity} {item.unit}</td>
-                            <td className="py-3 text-right align-top">{formatCurrency(getEffectiveUnitPrice(item))}</td>
-                            <td className="py-3 text-right font-medium align-top">{formatCurrency(calculateTotal(item))}</td>
-                          </tr>
-                        ))}
-                       </>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex justify-end mb-12 page-break">
-                <div className="w-64 space-y-2">
-                  
-                  {discount > 0 ? (
-                    <>
-                      <div className="flex justify-between text-sm text-slate-600">
-                        <span>Subtotal:</span>
-                        <span>{formatCurrency(subTotal)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-red-600 border-b border-slate-300 pb-2">
-                        <span>Desconto:</span>
-                        <span>- {formatCurrency(discount)}</span>
-                      </div>
-                      <div className="flex justify-between text-xl font-bold text-slate-900 pt-1">
-                        <span>Total Geral:</span>
-                        <span>{formatCurrency(finalTotal)}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex justify-between text-sm text-slate-600">
-                        <span>Serviços:</span>
-                        <span>{formatCurrency(totalServices)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-slate-600 border-b border-slate-300 pb-2">
-                        <span>Materiais:</span>
-                        <span>{formatCurrency(totalMaterials)}</span>
-                      </div>
-                      <div className="flex justify-between text-xl font-bold text-slate-900 pt-1">
-                        <span>Total Geral:</span>
-                        <span>{formatCurrency(subTotal)}</span>
-                      </div>
-                    </>
-                  )}
-
-                </div>
-              </div>
-
-              <div className="mt-auto page-break">
-                {company.terms && (
-                  <div className="mb-12">
-                    <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Termos e Condições</h4>
-                    <p className="text-sm text-slate-600 whitespace-pre-line border-l-4 border-slate-300 pl-4">
-                      {company.terms}
-                    </p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-12 mt-20">
-                  <div className="text-center">
-                    <div className="border-t border-slate-400 w-full mb-2"></div>
-                    <p className="text-xs font-bold uppercase text-slate-500">{company.name}</p> 
-                  </div>
-                  <div className="text-center">
-                    <div className="border-t border-slate-400 w-full mb-2"></div>
-                    <p className="text-xs font-bold uppercase text-slate-500">{client.company || client.name || 'Cliente'}</p>
-                    <p className="text-[10px] text-slate-400">Aceite do Cliente</p>
-                  </div>
-                </div>
-
-                <div className="flex justify-end mt-16 text-right"> 
-                    <div className="w-64">
-                        <p className="text-xs text-slate-500 uppercase">Emissão</p>
-                        <p className="text-sm text-slate-800">{new Date().toLocaleDateString('pt-BR')}</p>
-                    </div>
-                </div>
               </div>
 
             </div>
