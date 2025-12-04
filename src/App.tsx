@@ -34,6 +34,7 @@ const List = ({ className }: { className?: string }) => <IconBase className={cla
 const Search = ({ className }: { className?: string }) => <IconBase className={className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></IconBase>;
 const Lock = ({ className }: { className?: string }) => <IconBase className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></IconBase>;
 const LogOut = ({ className }: { className?: string }) => <IconBase className={className}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></IconBase>;
+const RefreshCw = ({ className }: { className?: string }) => <IconBase className={className}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></IconBase>;
 
 // Link do Logotipo FIXO
 const PREMA_LOGO_URL = 'https://prematelhados.com.br/wp-content/uploads/2018/09/TELHADOS1.png';
@@ -91,6 +92,7 @@ const fetchCatalog = async (): Promise<OrcamentoItem[]> => {
         const response = await fetch(POWER_AUTOMATE_URL);
         
         if (!response.ok) {
+            // Tenta ler o erro
             const errorText = await response.text();
             throw new Error(`Status ${response.status}: ${errorText}`);
         }
@@ -100,6 +102,7 @@ const fetchCatalog = async (): Promise<OrcamentoItem[]> => {
         if (data && data.value) {
             const itemsDoSharePoint = data.value.map((item: any) => ({
                 id: String(item.ID),
+                // Lógica de mapeamento robusta para o campo TIPO/ITEM
                 type: (item.Item && item.Item.Value ? item.Item.Value.toLowerCase() : (typeof item.Item === 'string' ? item.Item.toLowerCase() : 'service')),
                 description: item.Title || 'Item sem descrição',
                 quantity: 1,
@@ -112,7 +115,7 @@ const fetchCatalog = async (): Promise<OrcamentoItem[]> => {
         return [];
     } catch (error) {
         console.warn("API indisponível (Erro de conexão ou licença). Usando dados locais como backup.", error);
-        return currentCatalog;
+        return currentCatalog; // Fallback silencioso
     }
 };
 
@@ -162,6 +165,7 @@ export default function App() {
 
   // --- EFEITOS (Auth e Styles) ---
   useEffect(() => {
+    // Injeção de Tailwind
     const scriptId = 'tailwind-cdn-script';
     if (!document.getElementById(scriptId)) {
         const script = document.createElement('script');
@@ -170,25 +174,31 @@ export default function App() {
         document.head.appendChild(script);
     }
 
+    // Verifica login salvo
     const savedAuth = localStorage.getItem('prema_auth');
     if (savedAuth === 'true') {
         setIsAuthenticated(true);
     }
   }, []);
   
-  // Carregamento de dados (só roda se autenticado)
+  // Função unificada para carregar catálogo
+  const loadCatalogData = () => {
+    setIsSharePointReady(false);
+    fetchCatalog()
+      .then(data => {
+        setCatalogItems(data);
+        setIsSharePointReady(true);
+      })
+      .catch(e => {
+        console.error("ERRO GERAL:", e);
+        setIsSharePointReady(true);
+      });
+  };
+
+  // Carregamento inicial (só roda se autenticado)
   useEffect(() => {
     if (isAuthenticated) {
-        setIsSharePointReady(false);
-        fetchCatalog()
-          .then(data => {
-            setCatalogItems(data);
-            setIsSharePointReady(true);
-          })
-          .catch(e => {
-            console.error("ERRO GERAL:", e);
-            setIsSharePointReady(true);
-          });
+        loadCatalogData();
     }
   }, [isAuthenticated]); 
 
@@ -545,7 +555,16 @@ export default function App() {
                     <h2 className="text-lg font-bold flex items-center gap-2 text-slate-700">
                         <List className="w-5 h-5 text-gray-600" /> Catálogo
                     </h2>
-                    <span className="text-xs text-slate-400 font-medium">Fonte: {USE_MOCK_DATA ? 'Interna' : 'SharePoint'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400 font-medium">Fonte: {USE_MOCK_DATA ? 'Interna' : 'SharePoint'}</span>
+                      <button 
+                        onClick={loadCatalogData}
+                        title="Atualizar Lista"
+                        className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500 hover:text-blue-600"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    </div>
                 </div>
 
                 <div className="relative mb-3">
@@ -827,7 +846,7 @@ export default function App() {
                           <tr key={item.id}>
                             <td className="py-3 pr-2 align-top">{item.description}</td>
                             <td className="py-3 text-center align-top">{item.quantity} {item.unit}</td>
-                            <td className="py-3 text-right align-top">{formatCurrency(getEffectiveUnitPrice(item))}</td>
+                            <td className="py-3 text-right align-top">{getEffectiveUnitPrice(item)}</td>
                             <td className="py-3 text-right font-medium align-top">{formatCurrency(calculateTotal(item))}</td>
                           </tr>
                         ))}
