@@ -2,18 +2,47 @@ import React, { useState, useEffect } from 'react';
 
 // --- CONFIGURAÇÃO ---
 // 1. USE_MOCK_DATA = false: O app vai conectar na internet.
-// 2. Cole a URL do seu fluxo Premium (Gatilho 'Request') abaixo.
+// 2. URL Configurada com a assinatura de segurança (&sig).
 const USE_MOCK_DATA = false; 
 const POWER_AUTOMATE_URL = "https://2c32e22e09dee2c482b4bd6effc833.e9.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/24408d1a4248438da7c6e232dc438e3c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dF-gNLh16xJGLebM3huqCF5nT00EwyxMYvX-ml1Kklg"; 
 
 // --- CONFIGURAÇÃO DE USUÁRIOS ---
 // Formato: "usuario": "senha"
-// Adicione quantos usuários quiser aqui.
 const VALID_USERS: Record<string, string> = {
   "admin": "pr3m4",
+  "Wagner": "240656",
   "Julia": "011223",
-  "Andre": "101025",
-  "Wagner": "240656"
+  "Andre": "101025"
+};
+
+// --- DADOS DOS ORÇAMENTISTAS (VINCULADOS AO LOGIN) ---
+interface EstimatorInfo {
+  name: string;
+  email: string;
+  phone: string;
+}
+
+const ESTIMATORS_DATA: Record<string, EstimatorInfo> = {
+  "admin": { 
+    name: "Administrador", 
+    email: "contato@prematelhados.com.br", 
+    phone: "(11) 4858-04759" 
+  },
+  "Wagner": { 
+    name: "Wagner Paschoal", 
+    email: "wagner@prematelhados.com.br", 
+    phone: "(11) 97023-2486" 
+  },
+  "Julia": { 
+    name: "Júlia Rodrigues", 
+    email: "julia@prematelhados.com.br", 
+    phone: "(11) 95903-0188" 
+  },
+  "Andre": { 
+    name: "André Luiz", 
+    email: "andre@prematelhados.com.br", 
+    phone: "(11) 93771-8438" 
+  }
 };
 
 // --- ÍCONES (SVG Nativos) ---
@@ -43,6 +72,11 @@ const LogOut = ({ className }: { className?: string }) => <IconBase className={c
 const RefreshCw = ({ className }: { className?: string }) => <IconBase className={className}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></IconBase>;
 const FileSignature = ({ className }: { className?: string }) => <IconBase className={className}><path d="M20 19v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8"/><path d="M4 15h2"/><path d="M4 11h6"/><path d="M4 7h6"/><path d="M8 18h1"/><path d="m18.4 9.6-9.9 9.9-3.2.9.9-3.2 9.9-9.9 2.3 2.3z"/></IconBase>;
 const User = ({ className }: { className?: string }) => <IconBase className={className}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></IconBase>;
+const Tag = ({ className }: { className?: string }) => <IconBase className={className}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></IconBase>;
+const HardHat = ({ className }: { className?: string }) => <IconBase className={className}><path d="M2 20h20"/><path d="M5 20v-8h14v8"/><path d="M5 12a7 7 0 0 1 14 0"/></IconBase>;
+const ClipboardList = ({ className }: { className?: string }) => <IconBase className={className}><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></IconBase>;
+const Camera = ({ className }: { className?: string }) => <IconBase className={className}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></IconBase>;
+const X = ({ className }: { className?: string }) => <IconBase className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>;
 
 // Link do Logotipo FIXO
 const PREMA_LOGO_URL = 'https://prematelhados.com.br/wp-content/uploads/2018/09/TELHADOS1.png';
@@ -71,7 +105,14 @@ interface ClientInfo {
 interface CompanyInfo {
   name: string;
   contact: string;
-  terms: string;
+  terms: string;       // Usado para CONDIÇÕES
+  serviceTerms: string; // Usado para TERMOS
+}
+
+interface ReportPhoto {
+    id: string;
+    url: string;
+    caption: string;
 }
 
 // --- DADOS DO CATÁLOGO (MOCK - FALLBACK) ---
@@ -133,7 +174,7 @@ export default function App() {
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [currentUser, setCurrentUser] = useState(''); // Guarda quem logou
+  const [currentUser, setCurrentUser] = useState(''); 
 
   const [view, setView] = useState<'editor' | 'preview'>('editor');
   const [discount, setDiscount] = useState<number>(0);
@@ -142,13 +183,43 @@ export default function App() {
   const [catalogItems, setCatalogItems] = useState<OrcamentoItem[]>([]);
   const [isSharePointReady, setIsSharePointReady] = useState(false);
   
-  // Novo estado para a descrição livre dos serviços
+  // Estado para o número do orçamento
+  const [budgetNumber, setBudgetNumber] = useState(() => Math.floor(Math.random() * 10000));
+  
+  // Estado para a descrição livre dos serviços
   const [serviceDescription, setServiceDescription] = useState('');
+
+  // Novo estado para a referência do serviço (Ref)
+  const [reference, setReference] = useState('');
+
+  // NOVO ESTADO PARA FOTOS
+  const [photos, setPhotos] = useState<ReportPhoto[]>([]);
+
+  // TEXTO PADRÃO DOS TERMOS
+  const DEFAULT_TERMS = `Horários de Trabalho
+2ª a 6ª feira das 7hs às 17hs, as 6ª-feiras até as 16hs.
+
+Prazo de Início
+Em até 10 dias após assinatura da proposta
+
+Execução dos Serviços
+Serão executados exclusivamente os serviços descritos e contratados nesta proposta, garantindo total clareza e transparência ao cliente. Qualquer necessidade adicional poderá ser atendida mediante solicitação e aprovação de orçamento complementar.
+
+Encargos e despesas
+As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nossa equipe já estão integralmente incluídas no valor proposto.`;
 
   const [company, setCompany] = useState<CompanyInfo>({
     name: 'Prema Telhados Arquitetura e Projetos LTDA',
     contact: '(11) 4858-04759 | atendimento@prematelhados.com.br',
-    terms: 'Pagamento: 50% na entrada e 50% na conclusão.'
+    terms: 'Pagamento: 50% na entrada e 50% na conclusão.', // Agora são CONDIÇÕES
+    serviceTerms: DEFAULT_TERMS // Novo campo para TERMOS
+  });
+
+  // Estado do Orçamentista (Preenchido automaticamente no login)
+  const [estimator, setEstimator] = useState<EstimatorInfo>({
+    name: '',
+    email: '',
+    phone: ''
   });
 
   const [client, setClient] = useState<ClientInfo>({
@@ -187,6 +258,10 @@ export default function App() {
     if (savedAuth) {
         setIsAuthenticated(true);
         setCurrentUser(savedAuth);
+        // Restaura os dados do orçamentista se existirem
+        if (ESTIMATORS_DATA[savedAuth]) {
+            setEstimator(ESTIMATORS_DATA[savedAuth]);
+        }
     }
   }, []);
   
@@ -209,16 +284,22 @@ export default function App() {
     }
   }, [isAuthenticated]); 
 
-  // --- Lógica de Login (Multi-usuário) ---
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Verifica se o usuário existe e se a senha bate
     const user = usernameInput.trim();
     if (VALID_USERS[user] && VALID_USERS[user] === passwordInput) {
         setIsAuthenticated(true);
         setCurrentUser(user);
-        localStorage.setItem('prema_auth_user', user); // Salva o nome do usuário
+        localStorage.setItem('prema_auth_user', user);
+        
+        // Preenche automaticamente os dados do orçamentista
+        if (ESTIMATORS_DATA[user]) {
+            setEstimator(ESTIMATORS_DATA[user]);
+        } else {
+            // Fallback se não tiver dados cadastrados
+            setEstimator({ name: user, email: '', phone: '' });
+        }
+
         setLoginError('');
     } else {
         setLoginError('Usuário ou senha incorretos.');
@@ -231,9 +312,9 @@ export default function App() {
     setUsernameInput('');
     setPasswordInput('');
     setCurrentUser('');
+    setEstimator({ name: '', email: '', phone: '' });
   };
 
-  // --- TELA DE LOGIN (PERSONALIZADA PREMA) ---
   if (!isAuthenticated) {
     return (
         <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans text-slate-800">
@@ -374,6 +455,31 @@ export default function App() {
 
   const handlePrint = () => {
     window.print();
+    setBudgetNumber(Math.floor(Math.random() * 10000));
+  };
+
+  // --- Lógica de Fotos ---
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const id = Math.random().toString(36).substr(2, 9);
+            setPhotos([...photos, { id, url: reader.result as string, caption: '' }]);
+        };
+        reader.readAsDataURL(file);
+        
+        // Limpa o input para permitir reenviar a mesma foto se quiser
+        e.target.value = '';
+    }
+  };
+
+  const updatePhotoCaption = (id: string, text: string) => {
+      setPhotos(prev => prev.map(p => p.id === id ? { ...p, caption: text } : p));
+  };
+
+  const removePhoto = (id: string) => {
+      setPhotos(prev => prev.filter(p => p.id !== id));
   };
 
   // --- Renderização PRINCIPAL ---
@@ -388,6 +494,7 @@ export default function App() {
           .no-print { display: none !important; }
           .print-only { display: block !important; }
           .page-break { page-break-inside: avoid; }
+          .force-page-break { page-break-before: always; } /* Força nova página para fotos */
           .A4-container { 
             box-shadow: none !important; 
             margin: 0 !important; 
@@ -470,6 +577,38 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Card Orçamentista (NOVO) */}
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
+                  <HardHat className="w-5 h-5 text-yellow-600" /> Orçamentista
+                </h2>
+                <div className="space-y-3">
+                  <input 
+                    type="text" 
+                    placeholder="Nome do Orçamentista"
+                    className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-yellow-500 outline-none text-sm font-semibold"
+                    value={estimator.name}
+                    onChange={e => setEstimator({...estimator, name: e.target.value})}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="Telefone"
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-yellow-500 outline-none text-sm"
+                      value={estimator.phone}
+                      onChange={e => setEstimator({...estimator, phone: e.target.value})}
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="E-mail"
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-yellow-500 outline-none text-sm"
+                      value={estimator.email}
+                      onChange={e => setEstimator({...estimator, email: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Card Cliente */}
               <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                 <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
@@ -513,6 +652,55 @@ export default function App() {
                       onChange={e => setClient({...client, document: e.target.value})}
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Card Ref (NOVO) */}
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
+                    <Tag className="w-5 h-5 text-indigo-600" /> Ref
+                </h2>
+                <input
+                    type="text"
+                    placeholder="Ex: Reforma do Galpão A"
+                    className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                    value={reference}
+                    onChange={e => setReference(e.target.value)}
+                />
+              </div>
+
+              {/* Card Fotos (NOVO RECURSO) */}
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
+                    <Camera className="w-5 h-5 text-pink-600" /> Fotos do Local
+                </h2>
+                <div className="space-y-4">
+                    <label className="block w-full cursor-pointer bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:bg-slate-100 transition">
+                        <span className="text-sm text-slate-500 font-medium">Clique para adicionar uma foto</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                    </label>
+                    
+                    {photos.length > 0 && (
+                        <div className="space-y-3">
+                            {photos.map((photo) => (
+                                <div key={photo.id} className="flex gap-3 items-start bg-slate-50 p-2 rounded border border-slate-200">
+                                    <img src={photo.url} alt="Preview" className="w-16 h-16 object-cover rounded" />
+                                    <div className="flex-1">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Legenda da foto..."
+                                            className="w-full p-1 border-b border-slate-300 bg-transparent outline-none text-sm"
+                                            value={photo.caption}
+                                            onChange={(e) => updatePhotoCaption(photo.id, e.target.value)}
+                                        />
+                                    </div>
+                                    <button onClick={() => removePhoto(photo.id)} className="text-red-500 p-1 hover:bg-red-50 rounded">
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
               </div>
               
@@ -777,6 +965,21 @@ export default function App() {
                   />
               </div>
 
+              {/* Seção TERMOS (Novo Título) */}
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mt-6">
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
+                    <ClipboardList className="w-5 h-5 text-blue-600" /> Termos de Serviço
+                </h2>
+                <textarea 
+                  className="w-full p-3 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px]"
+                  rows={5}
+                  value={company.serviceTerms}
+                  onChange={e => setCompany({...company, serviceTerms: e.target.value})}
+                  placeholder="Digite os termos de execução, horários, etc."
+                />
+              </div>
+
+              {/* Seção CONDIÇÕES (Antigo Termos) */}
               <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mt-6">
                 <div className="mb-4 pb-4 border-b border-slate-100">
                     <h2 className="text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
@@ -798,7 +1001,7 @@ export default function App() {
                     </div>
                 </div>
 
-                <h2 className="text-sm font-bold mb-2 text-slate-700">Termos e Observações Adicionais</h2>
+                <h2 className="text-sm font-bold mb-2 text-slate-700">Condições de Pagamento e Observações</h2>
                 <textarea 
                   className="w-full p-3 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   rows={3}
@@ -833,7 +1036,7 @@ export default function App() {
 
             <div className="A4-container bg-white w-[210mm] min-h-[297mm] p-[20mm] shadow-2xl mx-auto relative text-slate-900 leading-normal">
               
-              <div className="border-b-2 border-slate-800 pb-6 mb-8 flex justify-between">
+              <div className="border-b-2 border-slate-800 pb-4 mb-6 flex justify-between">
                 
                 <div className="flex flex-col items-start max-w-[65%]">
                   <div className="w-36 h-18 mb-1 overflow-hidden flex items-center justify-start">
@@ -854,7 +1057,7 @@ export default function App() {
                 
                 <div className="text-right mt-[-40px]"> 
                   <h1 className="text-2xl font-bold uppercase tracking-wider text-slate-800 mb-2">ORÇAMENTO</h1>
-                  <p className="text-sm text-slate-500">Nº {Math.floor(Math.random() * 10000)}</p>
+                  <p className="text-sm text-slate-500">Nº WAG{budgetNumber}</p>
                   
                   <div className="mt-2 justify-end">
                      <div className="text-right">
@@ -865,23 +1068,40 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-4 rounded border border-slate-200 mb-8 page-break">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Preparado para</h3>
-                <div className="text-sm">
+              <div className="bg-slate-50 p-4 rounded border border-slate-200 mb-6 page-break">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Proposta destinada a</h3>
+                
+                <div className="text-sm text-slate-800">
                   {client.company ? (
-                    <>
-                      <p className="font-bold text-lg text-slate-800">{client.company}</p>
+                      <>
+                      <p className="font-bold text-lg">{client.company}</p>
                       {client.name && <p className="text-slate-600 mt-1">A/C: {client.name}</p>}
-                    </>
+                      </>
                   ) : (
-                    <p className="font-bold text-lg text-slate-800">{client.name || 'Cliente Não Informado'}</p>
+                      <p className="font-bold text-lg">{client.name || 'Cliente Não Informado'}</p>
                   )}
                   
                   {client.document && <p className="text-slate-600 mt-1">CPF/CNPJ: {client.document}</p>}
                   {client.address && <p className="text-slate-600">{client.address}</p>}
                   {(client.phone || client.email) && (
-                    <p className="text-slate-600 mt-1">{client.phone} • {client.email}</p>
+                      <p className="text-slate-600 mt-1">{client.phone} • {client.email}</p>
                   )}
+                </div>
+
+                {reference && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                        <p className="text-xs font-bold uppercase text-slate-400">Referência</p>
+                        <p className="font-bold text-slate-700">{reference}</p>
+                    </div>
+                )}
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded border border-slate-200 mb-6 page-break">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Orçamentista Responsável</h3>
+                <div className="text-sm text-slate-800">
+                    <p className="font-bold text-lg">{estimator.name || 'Não Informado'}</p>
+                    {estimator.email && <p className="text-slate-600 mt-1">{estimator.email}</p>}
+                    {estimator.phone && <p className="text-slate-600">{estimator.phone}</p>}
                 </div>
               </div>
 
@@ -939,7 +1159,7 @@ export default function App() {
                 )}
               </div>
 
-              <div className="flex justify-end mb-12 page-break">
+              <div className="flex justify-end mb-8 page-break">
                 <div className="w-64 space-y-2">
                   
                   {discount > 0 ? (
@@ -978,23 +1198,57 @@ export default function App() {
               </div>
 
               {serviceDescription && (
-                  <div className="mb-8 border-t-2 border-slate-800 pt-6 page-break">
+                  <div className="mb-4 border-t-2 border-slate-800 pt-6 page-break">
                       <h3 className="text-sm font-bold uppercase text-slate-800 mb-2">Descrição dos Serviços</h3>
                       <p className="text-sm text-slate-600 whitespace-pre-wrap">{serviceDescription}</p>
                   </div>
               )}
 
+              {/* SEGUNDA PÁGINA DE FOTOS (SE HOUVER) */}
+              {photos.length > 0 && (
+                  <div className="force-page-break pt-8">
+                      <h2 className="text-xl font-bold uppercase text-slate-800 mb-6 border-b-2 border-slate-800 pb-2">
+                          Anexos Orçamento Nº WAG{budgetNumber}
+                      </h2>
+                      <div className="grid grid-cols-2 gap-8">
+                          {photos.map((photo) => (
+                              <div key={photo.id} className="flex flex-col items-center break-inside-avoid">
+                                  {/* Legenda como Título (Negrito) */}
+                                  {photo.caption && (
+                                      <p className="mb-2 text-sm font-bold text-slate-800 text-center uppercase">
+                                          {photo.caption}
+                                      </p>
+                                  )}
+                                  <div className="w-full aspect-video bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">
+                                      <img src={photo.url} alt={photo.caption || "Anexo"} className="w-full h-full object-contain" />
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+              )}
+
               <div className="mt-auto page-break">
+                
+                {/* Seção CONDIÇÕES (Antigo Termos - AGORA PRIMEIRO) */}
                 {company.terms && (
-                  <div className="mb-12">
-                    <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Termos e Condições</h4>
+                  <div className="mb-8">
+                    <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Condições</h4>
                     <p className="text-sm text-slate-600 whitespace-pre-line border-l-4 border-slate-300 pl-4">
                       {company.terms}
                     </p>
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-12 mt-20">
+                {/* Seção TERMOS (Novo Título - AGORA DEPOIS) */}
+                <div className="mb-8">
+                    <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Termos</h4>
+                    <p className="text-sm text-slate-600 whitespace-pre-line border-l-4 border-slate-300 pl-4">
+                      {company.serviceTerms}
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-12 mt-16">
                   <div className="text-center">
                     <div className="border-t border-slate-400 w-full mb-2"></div>
                     <p className="text-xs font-bold uppercase text-slate-500">{company.name}</p> 
@@ -1006,7 +1260,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex justify-end mt-16 text-right"> 
+                <div className="flex justify-end mt-8 text-right"> 
                     <div className="w-64">
                         <p className="text-xs text-slate-500 uppercase">Emissão</p>
                         <p className="text-sm text-slate-800">{new Date().toLocaleDateString('pt-BR')}</p>
