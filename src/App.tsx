@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
 
 // --- CONFIGURAÇÃO ---
-// ATENÇÃO: Modo Premium Ativado.
-// 1. USE_MOCK_DATA = false: O app vai tentar conectar na internet.
+// 1. USE_MOCK_DATA = false: O app vai conectar na internet.
 // 2. Cole a URL do seu fluxo Premium (Gatilho 'Request') abaixo.
 const USE_MOCK_DATA = false; 
-const POWER_AUTOMATE_URL = ""; 
+const POWER_AUTOMATE_URL = "https://2c32e22e09dee2c482b4bd6effc833.e9.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/24408d1a4248438da7c6e232dc438e3c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dF-gNLh16xJGLebM3huqCF5nT00EwyxMYvX-ml1Kklg"; 
 
-// --- CONFIGURAÇÃO DE SEGURANÇA ---
-const APP_PASSWORD = "pr3m42026"; // <--- ALTERE SUA SENHA AQUI
+// --- CONFIGURAÇÃO DE USUÁRIOS ---
+// Formato: "usuario": "senha"
+// Adicione quantos usuários quiser aqui.
+const VALID_USERS: Record<string, string> = {
+  "admin": "pr3m4",
+  "Julia": "011223",
+  "Andre": "101025",
+  "Wagner": "240656"
+};
 
 // --- ÍCONES (SVG Nativos) ---
 const IconBase = ({ children, className }: { children: React.ReactNode; className?: string }) => (
@@ -34,6 +40,9 @@ const List = ({ className }: { className?: string }) => <IconBase className={cla
 const Search = ({ className }: { className?: string }) => <IconBase className={className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></IconBase>;
 const Lock = ({ className }: { className?: string }) => <IconBase className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></IconBase>;
 const LogOut = ({ className }: { className?: string }) => <IconBase className={className}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></IconBase>;
+const RefreshCw = ({ className }: { className?: string }) => <IconBase className={className}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></IconBase>;
+const FileSignature = ({ className }: { className?: string }) => <IconBase className={className}><path d="M20 19v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8"/><path d="M4 15h2"/><path d="M4 11h6"/><path d="M4 7h6"/><path d="M8 18h1"/><path d="m18.4 9.6-9.9 9.9-3.2.9.9-3.2 9.9-9.9 2.3 2.3z"/></IconBase>;
+const User = ({ className }: { className?: string }) => <IconBase className={className}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></IconBase>;
 
 // Link do Logotipo FIXO
 const PREMA_LOGO_URL = 'https://prematelhados.com.br/wp-content/uploads/2018/09/TELHADOS1.png';
@@ -65,7 +74,7 @@ interface CompanyInfo {
   terms: string;
 }
 
-// --- DADOS DO CATÁLOGO (MOCK) ---
+// --- DADOS DO CATÁLOGO (MOCK - FALLBACK) ---
 const MOCK_SHAREPOINT_CATALOG: OrcamentoItem[] = [
     { id: 'sp-1', type: 'service', description: 'Consultoria de Projetos', quantity: 1, unit: 'un', unitPrice: 2500 },
     { id: 'sp-2', type: 'material', description: 'Telhas Metálicas Termoacústicas', quantity: 1, unit: 'm²', unitPrice: 180.50 },
@@ -91,7 +100,8 @@ const fetchCatalog = async (): Promise<OrcamentoItem[]> => {
         const response = await fetch(POWER_AUTOMATE_URL);
         
         if (!response.ok) {
-            throw new Error(`Status ${response.status}`);
+            const errorText = await response.text();
+            throw new Error(`Status ${response.status}: ${errorText}`);
         }
 
         const data = await response.json();
@@ -117,12 +127,14 @@ const fetchCatalog = async (): Promise<OrcamentoItem[]> => {
 // --- COMPONENTE PRINCIPAL ---
 
 export default function App() {
-  // --- Estados de Autenticação ---
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // Estado para múltiplos usuários
+  const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [currentUser, setCurrentUser] = useState(''); // Guarda quem logou
 
-  // --- Estados do App ---
   const [view, setView] = useState<'editor' | 'preview'>('editor');
   const [discount, setDiscount] = useState<number>(0);
   const [validityDays, setValidityDays] = useState<number>(15);
@@ -130,6 +142,9 @@ export default function App() {
   const [catalogItems, setCatalogItems] = useState<OrcamentoItem[]>([]);
   const [isSharePointReady, setIsSharePointReady] = useState(false);
   
+  // Novo estado para a descrição livre dos serviços
+  const [serviceDescription, setServiceDescription] = useState('');
+
   const [company, setCompany] = useState<CompanyInfo>({
     name: 'Prema Telhados Arquitetura e Projetos LTDA',
     contact: '(11) 4858-04759 | atendimento@prematelhados.com.br',
@@ -145,9 +160,10 @@ export default function App() {
     email: ''
   });
 
+  // --- ITENS INICIAIS ---
   const [items, setItems] = useState<OrcamentoItem[]>([
-    { id: '1', type: 'service', description: 'Instalação Elétrica', quantity: 8, unit: 'horas', unitPrice: 150 },
-    { id: '2', type: 'material', description: 'Fios 10mm', quantity: 50, unit: 'm', unitPrice: 12.50 },
+    { id: '1', type: 'service', description: 'Revisão de calhas', quantity: 1, unit: 'un', unitPrice: 350 },
+    { id: '2', type: 'material', description: 'Telha TP40', quantity: 10, unit: 'm', unitPrice: 45.00 },
   ]);
 
   const [newItem, setNewItem] = useState<Partial<OrcamentoItem>>({
@@ -158,9 +174,7 @@ export default function App() {
     unitPrice: 0
   });
 
-  // --- EFEITOS (Auth e Styles) ---
   useEffect(() => {
-    // Injeção de Tailwind
     const scriptId = 'tailwind-cdn-script';
     if (!document.getElementById(scriptId)) {
         const script = document.createElement('script');
@@ -169,79 +183,107 @@ export default function App() {
         document.head.appendChild(script);
     }
 
-    // Verifica login salvo
-    const savedAuth = localStorage.getItem('prema_auth');
-    if (savedAuth === 'true') {
+    const savedAuth = localStorage.getItem('prema_auth_user');
+    if (savedAuth) {
         setIsAuthenticated(true);
+        setCurrentUser(savedAuth);
     }
   }, []);
   
-  // Carregamento de dados (só roda se autenticado)
+  const loadCatalogData = () => {
+    setIsSharePointReady(false);
+    fetchCatalog()
+      .then(data => {
+        setCatalogItems(data);
+        setIsSharePointReady(true);
+      })
+      .catch(e => {
+        console.error("ERRO GERAL:", e);
+        setIsSharePointReady(true);
+      });
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
-        setIsSharePointReady(false);
-        fetchCatalog()
-          .then(data => {
-            setCatalogItems(data);
-            setIsSharePointReady(true);
-          })
-          .catch(e => {
-            console.error("ERRO GERAL:", e);
-            setIsSharePointReady(true);
-          });
+        loadCatalogData();
     }
   }, [isAuthenticated]); 
 
-  // --- Lógica de Login ---
+  // --- Lógica de Login (Multi-usuário) ---
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === APP_PASSWORD) {
+    
+    // Verifica se o usuário existe e se a senha bate
+    const user = usernameInput.trim();
+    if (VALID_USERS[user] && VALID_USERS[user] === passwordInput) {
         setIsAuthenticated(true);
-        localStorage.setItem('prema_auth', 'true');
+        setCurrentUser(user);
+        localStorage.setItem('prema_auth_user', user); // Salva o nome do usuário
         setLoginError('');
     } else {
-        setLoginError('Senha incorreta. Tente novamente.');
+        setLoginError('Usuário ou senha incorretos.');
     }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    localStorage.removeItem('prema_auth');
+    localStorage.removeItem('prema_auth_user');
+    setUsernameInput('');
     setPasswordInput('');
+    setCurrentUser('');
   };
 
-  // --- TELA DE LOGIN ---
+  // --- TELA DE LOGIN (PERSONALIZADA PREMA) ---
   if (!isAuthenticated) {
     return (
         <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans text-slate-800">
-            {/* Styles injetados manualmente para o Login caso o Tailwind demore a carregar */}
             <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200 text-center">
                 <div className="flex justify-center mb-6">
-                    <div className="p-4 bg-blue-50 rounded-full">
-                        <Lock className="w-8 h-8 text-blue-600" />
-                    </div>
+                    <img 
+                        src={PREMA_LOGO_URL} 
+                        alt="Logo Prema" 
+                        className="h-16 w-auto object-contain"
+                    />
                 </div>
-                <h1 className="text-2xl font-bold text-slate-800 mb-2">Orçamentos Prema</h1>
+                <h1 className="text-2xl font-bold text-slate-800 mb-2">Orçamentos</h1>
                 <p className="text-slate-500 text-sm mb-6">Área restrita para vendedores autorizados.</p>
                 
                 <form onSubmit={handleLogin} className="space-y-4">
-                    <div>
-                        <input 
-                            type="password" 
-                            placeholder="Senha de Acesso"
-                            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
-                            value={passwordInput}
-                            onChange={(e) => setPasswordInput(e.target.value)}
-                        />
+                    <div className="text-left">
+                        <label className="text-xs font-bold text-slate-500 ml-1">USUÁRIO</label>
+                        <div className="relative">
+                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input 
+                                type="text" 
+                                placeholder="Seu usuário"
+                                className="w-full pl-9 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                value={usernameInput}
+                                onChange={(e) => setUsernameInput(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    
+                    <div className="text-left">
+                        <label className="text-xs font-bold text-slate-500 ml-1">SENHA</label>
+                        <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input 
+                                type="password" 
+                                placeholder="Sua senha"
+                                className="w-full pl-9 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                value={passwordInput}
+                                onChange={(e) => setPasswordInput(e.target.value)}
+                            />
+                        </div>
                     </div>
                     
                     {loginError && (
-                        <p className="text-red-500 text-sm font-medium">{loginError}</p>
+                        <p className="text-red-500 text-sm font-medium bg-red-50 p-2 rounded">{loginError}</p>
                     )}
 
                     <button 
                         type="submit"
-                        className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 rounded-lg transition shadow-md hover:shadow-lg transform active:scale-95"
+                        className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 rounded-lg transition shadow-md hover:shadow-lg transform active:scale-95 mt-2"
                     >
                         Entrar no Sistema
                     </button>
@@ -288,6 +330,15 @@ export default function App() {
   };
 
   // --- Ações ---
+  const updateItem = (id: string, field: keyof OrcamentoItem, value: number | string) => {
+    setItems(prevItems => prevItems.map(item => {
+        if (item.id === id) {
+            return { ...item, [field]: value };
+        }
+        return item;
+    }));
+  };
+
   const addItem = () => {
     if (!newItem.description || !newItem.unitPrice) return;
     
@@ -367,9 +418,13 @@ export default function App() {
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2">
             <LayoutTemplate className="w-6 h-6" />
-            <h1 className="text-xl font-bold">Orçamentos Prema</h1>
+            <h1 className="text-xl font-bold">Orçamentos</h1>
           </div>
           <div className="flex gap-3 items-center">
+            <div className="hidden md:flex items-center text-sm mr-2 opacity-80">
+                <User className="w-4 h-4 mr-1" />
+                <span>Olá, {currentUser}</span>
+            </div>
             <button 
               onClick={() => setView('editor')}
               className={`px-4 py-2 rounded-lg flex items-center gap-2 transition ${view === 'editor' ? 'bg-white text-blue-700 font-bold' : 'hover:bg-blue-600'}`}
@@ -546,7 +601,16 @@ export default function App() {
                     <h2 className="text-lg font-bold flex items-center gap-2 text-slate-700">
                         <List className="w-5 h-5 text-gray-600" /> Catálogo
                     </h2>
-                    <span className="text-xs text-slate-400 font-medium">Fonte: {USE_MOCK_DATA ? 'Interna' : 'SharePoint'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400 font-medium">Fonte: {USE_MOCK_DATA ? 'Interna' : 'SharePoint'}</span>
+                      <button 
+                        onClick={loadCatalogData}
+                        title="Atualizar Lista"
+                        className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500 hover:text-blue-600"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    </div>
                 </div>
 
                 <div className="relative mb-3">
@@ -662,9 +726,25 @@ export default function App() {
                             </span>
                           </td>
                           <td className="p-4 font-medium text-slate-700">{item.description}</td>
-                          <td className="p-4 text-center text-slate-500">{item.quantity} {item.unit}</td>
-                          <td className="p-4 text-right text-slate-500">
-                            {formatCurrency(item.unitPrice)}
+                          {/* Edição de Quantidade */}
+                          <td className="p-4 text-center">
+                            <input 
+                                type="number" 
+                                className="w-16 p-1 border border-slate-300 rounded text-center focus:ring-2 focus:ring-blue-500 outline-none text-slate-600"
+                                value={item.quantity}
+                                onChange={(e) => updateItem(item.id, 'quantity', Number(e.target.value))}
+                            />
+                            <span className="text-xs text-slate-400 ml-1">{item.unit}</span>
+                          </td>
+                          {/* Edição de Preço */}
+                          <td className="p-4 text-right">
+                            <input 
+                                type="number" 
+                                step="0.01"
+                                className="w-24 p-1 border border-slate-300 rounded text-right focus:ring-2 focus:ring-blue-500 outline-none text-slate-600"
+                                value={item.unitPrice}
+                                onChange={(e) => updateItem(item.id, 'unitPrice', Number(e.target.value))}
+                            />
                           </td>
                           <td className="p-4 text-right font-semibold text-slate-700">
                             {formatCurrency(calculateTotal(item))}
@@ -684,7 +764,20 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+              {/* Nova Seção: Descrição dos Serviços */}
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mt-6">
+                  <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
+                      <FileSignature className="w-5 h-5 text-indigo-600" /> Descrição dos Serviços
+                  </h2>
+                  <textarea
+                      className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm min-h-[100px] whitespace-pre-wrap"
+                      placeholder="Descreva detalhadamente como os serviços serão realizados, etapas, observações técnicas, etc..."
+                      value={serviceDescription}
+                      onChange={(e) => setServiceDescription(e.target.value)}
+                  />
+              </div>
+
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mt-6">
                 <div className="mb-4 pb-4 border-b border-slate-100">
                     <h2 className="text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-blue-600" /> Validade do Orçamento
@@ -719,7 +812,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- VIEW: PREVIEW (SIMULAÇÃO DE PAPEL A4) --- */}
+        {/* --- VIEW: PREVIEW --- */}
         {view === 'preview' && (
           <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
             
@@ -793,21 +886,19 @@ export default function App() {
               </div>
 
               <div className="mb-8">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b-2 border-slate-800 text-slate-800">
-                      <th className="text-left py-2">Descrição</th>
-                      <th className="text-center py-2 w-24">Qtd</th>
-                      <th className="text-right py-2 w-32">Preço Unit.</th>
-                      <th className="text-right py-2 w-32">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {items.some(i => i.type === 'service') && (
-                       <>
-                        <tr className="bg-slate-100 font-bold text-xs uppercase text-slate-500">
-                          <td colSpan={4} className="py-2 px-2 mt-2">Mão de Obra / Serviços</td>
+                {/* --- SEÇÃO DE SERVIÇOS (ESCOPO) --- */}
+                {items.some(i => i.type === 'service') && (
+                  <div className="mb-8">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b-2 border-slate-800 text-slate-800">
+                          <th className="text-left py-2">Escopo</th>
+                          <th className="text-center py-2 w-24">Qtd</th>
+                          <th className="text-right py-2 w-32">Preço Unit.</th>
+                          <th className="text-right py-2 w-32">Total</th>
                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
                         {items.filter(i => i.type === 'service').map(item => (
                           <tr key={item.id}>
                             <td className="py-3 pr-2 align-top">{item.description}</td>
@@ -816,14 +907,24 @@ export default function App() {
                             <td className="py-3 text-right font-medium align-top">{formatCurrency(calculateTotal(item))}</td>
                           </tr>
                         ))}
-                       </>
-                    )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-                    {items.some(i => i.type === 'material') && (
-                       <>
-                        <tr className="bg-slate-100 font-bold text-xs uppercase text-slate-500">
-                          <td colSpan={4} className="py-2 px-2 mt-4">Materiais / Insumos</td>
+                {/* --- SEÇÃO DE MATERIAIS --- */}
+                {items.some(i => i.type === 'material') && (
+                  <div className="mb-8">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b-2 border-slate-800 text-slate-800">
+                          <th className="text-left py-2">Materiais</th>
+                          <th className="text-center py-2 w-24">Qtd</th>
+                          <th className="text-right py-2 w-32">Preço Unit.</th>
+                          <th className="text-right py-2 w-32">Total</th>
                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
                         {items.filter(i => i.type === 'material').map(item => (
                           <tr key={item.id}>
                             <td className="py-3 pr-2 align-top">{item.description}</td>
@@ -832,10 +933,10 @@ export default function App() {
                             <td className="py-3 text-right font-medium align-top">{formatCurrency(calculateTotal(item))}</td>
                           </tr>
                         ))}
-                       </>
-                    )}
-                  </tbody>
-                </table>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end mb-12 page-break">
@@ -875,6 +976,13 @@ export default function App() {
 
                 </div>
               </div>
+
+              {serviceDescription && (
+                  <div className="mb-8 border-t-2 border-slate-800 pt-6 page-break">
+                      <h3 className="text-sm font-bold uppercase text-slate-800 mb-2">Descrição dos Serviços</h3>
+                      <p className="text-sm text-slate-600 whitespace-pre-wrap">{serviceDescription}</p>
+                  </div>
+              )}
 
               <div className="mt-auto page-break">
                 {company.terms && (
