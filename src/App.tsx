@@ -77,6 +77,7 @@ const HardHat = ({ className }: { className?: string }) => <IconBase className={
 const ClipboardList = ({ className }: { className?: string }) => <IconBase className={className}><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></IconBase>;
 const Camera = ({ className }: { className?: string }) => <IconBase className={className}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></IconBase>;
 const X = ({ className }: { className?: string }) => <IconBase className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>;
+const Truck = ({ className }: { className?: string }) => <IconBase className={className}><rect width="16" height="13" x="2" y="5" rx="2"/><path d="m16 6 4 2v5"/><circle cx="5.5" cy="16.5" r="1.5"/><circle cx="18.5" cy="16.5" r="1.5"/></IconBase>;
 
 // Link do Logotipo FIXO
 const PREMA_LOGO_URL = 'https://prematelhados.com.br/wp-content/uploads/2018/09/TELHADOS1.png';
@@ -196,6 +197,13 @@ export default function App() {
 
   // NOVO ESTADO PARA FOTOS
   const [photos, setPhotos] = useState<ReportPhoto[]>([]);
+
+  // NOVO ESTADO PARA FRETES E MOBILIZAÇÃO
+  const [mobilization, setMobilization] = useState({
+    hotel: { rate: 0, people: 0, days: 0 },
+    meal: { price: 0, qty: 0 },
+    freight: { price: 0, qty: 0 }
+  });
 
   // TEXTO PADRÃO DOS TERMOS
   const DEFAULT_TERMS = `Horários de Trabalho
@@ -451,6 +459,31 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
 
   const removeItem = (id: string) => {
     setItems(items.filter(i => i.id !== id));
+  };
+
+  // --- Função para adicionar Fretes e Mobilização ---
+  const addMobilizationToBudget = () => {
+    const totalHotel = mobilization.hotel.rate * mobilization.hotel.people * mobilization.hotel.days;
+    const totalMeal = mobilization.meal.price * mobilization.meal.qty;
+    const totalFreight = mobilization.freight.price * mobilization.freight.qty;
+    const grandTotal = totalHotel + totalMeal + totalFreight;
+
+    if (grandTotal <= 0) {
+        alert("O valor total de fretes e mobilização está zerado. Preencha os campos.");
+        return;
+    }
+
+    const item: OrcamentoItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      type: 'service', // Entra como serviço/escopo
+      description: 'Fretes e Mobilizações',
+      details: '', // Mantém detalhes vazios para não mostrar o breakdown
+      quantity: 1,
+      unit: 'vb', // Verba
+      unitPrice: grandTotal
+    };
+
+    setItems([...items, item]);
   };
 
   const formatCurrency = (value: number) => {
@@ -856,38 +889,108 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
                     </div>
                 )}
               </div>
-              
-              {/* Resumo Financeiro e Tabela */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                  <p className="text-sm text-blue-600 font-medium">Serviços</p>
-                  <p className="text-lg font-bold text-blue-800">{formatCurrency(totalServices)}</p>
-                </div>
-                <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
-                  <p className="text-sm text-orange-600 font-medium">Materiais</p>
-                  <p className="text-lg font-bold text-orange-800">{formatCurrency(totalMaterials)}</p>
-                </div>
-                
-                <div className="bg-red-50 p-4 rounded-xl border border-red-100 relative">
-                  <label className="text-sm text-red-600 font-medium flex items-center gap-1">
-                      Desconto (R$)
-                  </label>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    className="w-full bg-transparent text-lg font-bold text-red-800 outline-none border-b border-red-200 focus:border-red-400 mt-1 placeholder-red-300"
-                    placeholder="0,00"
-                    value={discount === 0 ? '' : discount}
-                    onChange={(e) => setDiscount(Number(e.target.value))}
-                  />
-                </div>
 
-                <div className="bg-green-50 p-4 rounded-xl border border-green-100">
-                  <p className="text-sm text-green-600 font-medium">Total Final</p>
-                  <p className="text-lg font-bold text-green-800">{formatCurrency(finalTotal)}</p>
-                </div>
+              {/* --- NOVA CAIXA: FRETES E MOBILIZAÇÃO --- */}
+              <div className="bg-white p-5 rounded-xl shadow-md border border-slate-200">
+                  <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
+                      <Truck className="w-5 h-5 text-indigo-600" /> Fretes e Mobilização
+                  </h2>
+                  
+                  <div className="space-y-3 text-sm">
+                      {/* Linha Hotel */}
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                          <div className="col-span-3 font-medium text-slate-600">Hotel</div>
+                          <div className="col-span-3">
+                              <input 
+                                  type="number" placeholder="Valor Unit." className="w-full p-2 border rounded outline-none"
+                                  value={mobilization.hotel.rate || ''}
+                                  onChange={e => setMobilization({...mobilization, hotel: {...mobilization.hotel, rate: Number(e.target.value)}})}
+                              />
+                          </div>
+                          <div className="col-span-2">
+                              <input 
+                                  type="number" placeholder="Quartos" className="w-full p-2 border rounded outline-none"
+                                  value={mobilization.hotel.people || ''}
+                                  onChange={e => setMobilization({...mobilization, hotel: {...mobilization.hotel, people: Number(e.target.value)}})}
+                              />
+                          </div>
+                          <div className="col-span-2">
+                              <input 
+                                  type="number" placeholder="Dias" className="w-full p-2 border rounded outline-none"
+                                  value={mobilization.hotel.days || ''}
+                                  onChange={e => setMobilization({...mobilization, hotel: {...mobilization.hotel, days: Number(e.target.value)}})}
+                              />
+                          </div>
+                          <div className="col-span-2 text-right font-bold text-slate-700">
+                              {formatCurrency(mobilization.hotel.rate * mobilization.hotel.people * mobilization.hotel.days)}
+                          </div>
+                      </div>
+
+                      {/* Linha Refeição */}
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                          <div className="col-span-3 font-medium text-slate-600">Refeição</div>
+                          <div className="col-span-3">
+                              <input 
+                                  type="number" placeholder="Valor Unit." className="w-full p-2 border rounded outline-none"
+                                  value={mobilization.meal.price || ''}
+                                  onChange={e => setMobilization({...mobilization, meal: {...mobilization.meal, price: Number(e.target.value)}})}
+                              />
+                          </div>
+                          <div className="col-span-4">
+                              <input 
+                                  type="number" placeholder="Qtd Unidades" className="w-full p-2 border rounded outline-none"
+                                  value={mobilization.meal.qty || ''}
+                                  onChange={e => setMobilization({...mobilization, meal: {...mobilization.meal, qty: Number(e.target.value)}})}
+                              />
+                          </div>
+                          <div className="col-span-2 text-right font-bold text-slate-700">
+                              {formatCurrency(mobilization.meal.price * mobilization.meal.qty)}
+                          </div>
+                      </div>
+
+                      {/* Linha Frete */}
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                          <div className="col-span-3 font-medium text-slate-600">Frete</div>
+                          <div className="col-span-3">
+                              <input 
+                                  type="number" placeholder="Valor Unit." className="w-full p-2 border rounded outline-none"
+                                  value={mobilization.freight.price || ''}
+                                  onChange={e => setMobilization({...mobilization, freight: {...mobilization.freight, price: Number(e.target.value)}})}
+                              />
+                          </div>
+                          <div className="col-span-4">
+                              <input 
+                                  type="number" placeholder="Qtd Viagens" className="w-full p-2 border rounded outline-none"
+                                  value={mobilization.freight.qty || ''}
+                                  onChange={e => setMobilization({...mobilization, freight: {...mobilization.freight, qty: Number(e.target.value)}})}
+                              />
+                          </div>
+                          <div className="col-span-2 text-right font-bold text-slate-700">
+                              {formatCurrency(mobilization.freight.price * mobilization.freight.qty)}
+                          </div>
+                      </div>
+
+                      {/* Total e Botão */}
+                      <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
+                          <div className="text-sm text-slate-500">
+                              Total Mobilização: <span className="font-bold text-slate-800 text-lg ml-2">
+                                  {formatCurrency(
+                                      (mobilization.hotel.rate * mobilization.hotel.people * mobilization.hotel.days) +
+                                      (mobilization.meal.price * mobilization.meal.qty) +
+                                      (mobilization.freight.price * mobilization.freight.qty)
+                                  )}
+                              </span>
+                          </div>
+                          <button 
+                              onClick={addMobilizationToBudget}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2"
+                          >
+                              <Plus className="w-4 h-4" /> Adicionar ao Orçamento
+                          </button>
+                      </div>
+                  </div>
               </div>
-
+              
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
@@ -970,6 +1073,37 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
                 </div>
               </div>
 
+              {/* Resumo Financeiro */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                  <p className="text-sm text-blue-600 font-medium">Serviços</p>
+                  <p className="text-lg font-bold text-blue-800">{formatCurrency(totalServices)}</p>
+                </div>
+                <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
+                  <p className="text-sm text-orange-600 font-medium">Materiais</p>
+                  <p className="text-lg font-bold text-orange-800">{formatCurrency(totalMaterials)}</p>
+                </div>
+                
+                <div className="bg-red-50 p-4 rounded-xl border border-red-100 relative">
+                  <label className="text-sm text-red-600 font-medium flex items-center gap-1">
+                      Desconto (R$)
+                  </label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    className="w-full bg-transparent text-lg font-bold text-red-800 outline-none border-b border-red-200 focus:border-red-400 mt-1 placeholder-red-300"
+                    placeholder="0,00"
+                    value={discount === 0 ? '' : discount}
+                    onChange={(e) => setDiscount(Number(e.target.value))}
+                  />
+                </div>
+
+                <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+                  <p className="text-sm text-green-600 font-medium">Total Final</p>
+                  <p className="text-lg font-bold text-green-800">{formatCurrency(finalTotal)}</p>
+                </div>
+              </div>
+
               {/* Nova Seção: Descrição dos Serviços */}
               <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mt-6">
                   <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
@@ -981,20 +1115,6 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
                       value={serviceDescription}
                       onChange={(e) => setServiceDescription(e.target.value)}
                   />
-              </div>
-
-              {/* Seção TERMOS (Novo Título) */}
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mt-6">
-                <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
-                    <ClipboardList className="w-5 h-5 text-blue-600" /> Termos de Serviço
-                </h2>
-                <textarea 
-                  className="w-full p-3 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px]"
-                  rows={5}
-                  value={company.serviceTerms}
-                  onChange={e => setCompany({...company, serviceTerms: e.target.value})}
-                  placeholder="Digite os termos de execução, horários, etc."
-                />
               </div>
 
               {/* Seção CONDIÇÕES (Antigo Termos) */}
@@ -1029,6 +1149,20 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
                 />
               </div>
 
+              {/* Seção TERMOS (Novo Título) - MOVIDO PARA O FINAL */}
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mt-6">
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
+                    <ClipboardList className="w-5 h-5 text-blue-600" /> Termos de Serviço
+                </h2>
+                <textarea 
+                  className="w-full p-3 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px]"
+                  rows={5}
+                  value={company.serviceTerms}
+                  onChange={e => setCompany({...company, serviceTerms: e.target.value})}
+                  placeholder="Digite os termos de execução, horários, etc."
+                />
+              </div>
+
             </div>
           </div>
         )}
@@ -1052,7 +1186,7 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
               </button>
             </div>
 
-            <div className="A4-container bg-white w-[210mm] min-h-[297mm] p-[20mm] shadow-2xl mx-auto relative text-slate-900 leading-normal">
+            <div className="A4-container bg-white w-[210mm] min-h-[297mm] p-[15mm] shadow-2xl mx-auto relative text-slate-900 leading-normal">
               
               <div className="border-b-2 border-slate-800 pb-4 mb-6 flex justify-between">
                 
@@ -1126,7 +1260,7 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
               <div className="mb-8">
                 {/* --- SEÇÃO DE SERVIÇOS (ESCOPO) --- */}
                 {items.some(i => i.type === 'service') && (
-                  <div className="mb-8">
+                  <div className="mb-4">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b-2 border-slate-800 text-slate-800">
@@ -1155,7 +1289,7 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
 
                 {/* --- SEÇÃO DE MATERIAIS --- */}
                 {items.some(i => i.type === 'material') && (
-                  <div className="mb-8">
+                  <div className="mb-4">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b-2 border-slate-800 text-slate-800">
