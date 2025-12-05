@@ -88,6 +88,7 @@ interface OrcamentoItem {
   id: string;
   type: ItemType;
   description: string;
+  details?: string; // Novo campo para detalhes opcionais
   quantity: number;
   unit: string;
   unitPrice: number;
@@ -152,6 +153,7 @@ const fetchCatalog = async (): Promise<OrcamentoItem[]> => {
                 id: String(item.ID),
                 type: (item.Item && item.Item.Value ? item.Item.Value.toLowerCase() : (typeof item.Item === 'string' ? item.Item.toLowerCase() : 'service')),
                 description: item.Title || 'Item sem descrição',
+                details: '', // Detalhes começam vazios
                 quantity: 1,
                 unit: item.Unidade || 'un',
                 unitPrice: Number(item.Preco) || 0
@@ -233,8 +235,8 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
 
   // --- ITENS INICIAIS ---
   const [items, setItems] = useState<OrcamentoItem[]>([
-    { id: '1', type: 'service', description: 'Revisão de calhas', quantity: 1, unit: 'un', unitPrice: 350 },
-    { id: '2', type: 'material', description: 'Telha TP40', quantity: 10, unit: 'm', unitPrice: 45.00 },
+    { id: '1', type: 'service', description: 'Revisão de calhas', details: '', quantity: 1, unit: 'un', unitPrice: 350 },
+    { id: '2', type: 'material', description: 'Telha TP40', details: '', quantity: 10, unit: 'm', unitPrice: 45.00 },
   ]);
 
   const [newItem, setNewItem] = useState<Partial<OrcamentoItem>>({
@@ -427,6 +429,7 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
       id: Math.random().toString(36).substr(2, 9),
       type: newItem.type as ItemType || 'service',
       description: newItem.description,
+      details: '', // Inicializa vazio
       quantity: Number(newItem.quantity),
       unit: newItem.unit || 'un',
       unitPrice: Number(newItem.unitPrice)
@@ -440,6 +443,7 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
     const newItemCopy: OrcamentoItem = {
         ...catalogItem,
         id: Math.random().toString(36).substr(2, 9),
+        details: '', // Inicializa vazio para itens do catálogo
         quantity: 1,
     };
     setItems(prevItems => [...prevItems, newItemCopy]);
@@ -468,8 +472,6 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
             setPhotos([...photos, { id, url: reader.result as string, caption: '' }]);
         };
         reader.readAsDataURL(file);
-        
-        // Limpa o input para permitir reenviar a mesma foto se quiser
         e.target.value = '';
     }
   };
@@ -913,7 +915,23 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
                               {item.type === 'service' ? 'Serviço' : 'Material'}
                             </span>
                           </td>
-                          <td className="p-4 font-medium text-slate-700">{item.description}</td>
+                          {/* Descrição Editável e Campo de Detalhes */}
+                          <td className="p-4 font-medium text-slate-700 w-1/3">
+                            <input 
+                                type="text" 
+                                className="w-full p-1 border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none text-slate-700 font-medium bg-transparent transition mb-1"
+                                value={item.description}
+                                onChange={(e) => updateItem(item.id, 'description', e.target.value)}
+                                placeholder="Descrição do item"
+                            />
+                            <input 
+                                type="text" 
+                                className="w-full p-1 border border-slate-200 rounded outline-none text-xs text-slate-500 bg-slate-50 focus:bg-white focus:border-blue-400 transition placeholder-slate-300"
+                                value={item.details || ''}
+                                onChange={(e) => updateItem(item.id, 'details', e.target.value)}
+                                placeholder="Detalhes/Obs (Ex: Cor, Medidas)"
+                            />
+                          </td>
                           {/* Edição de Quantidade */}
                           <td className="p-4 text-center">
                             <input 
@@ -1121,7 +1139,10 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
                       <tbody className="divide-y divide-slate-200">
                         {items.filter(i => i.type === 'service').map(item => (
                           <tr key={item.id}>
-                            <td className="py-3 pr-2 align-top">{item.description}</td>
+                            <td className="py-3 pr-2 align-top">
+                                <div className="font-medium">{item.description}</div>
+                                {item.details && <div className="text-xs text-slate-500 mt-1">{item.details}</div>}
+                            </td>
                             <td className="py-3 text-center align-top">{item.quantity} {item.unit}</td>
                             <td className="py-3 text-right align-top">{formatCurrency(item.unitPrice)}</td>
                             <td className="py-3 text-right font-medium align-top">{formatCurrency(calculateTotal(item))}</td>
@@ -1147,7 +1168,10 @@ As despesas de alojamento, alimentação, encargos trabalhistas e seguros de nos
                       <tbody className="divide-y divide-slate-200">
                         {items.filter(i => i.type === 'material').map(item => (
                           <tr key={item.id}>
-                            <td className="py-3 pr-2 align-top">{item.description}</td>
+                            <td className="py-3 pr-2 align-top">
+                                <div className="font-medium">{item.description}</div>
+                                {item.details && <div className="text-xs text-slate-500 mt-1">{item.details}</div>}
+                            </td>
                             <td className="py-3 text-center align-top">{item.quantity} {item.unit}</td>
                             <td className="py-3 text-right align-top">{formatCurrency(getEffectiveUnitPrice(item))}</td>
                             <td className="py-3 text-right font-medium align-top">{formatCurrency(calculateTotal(item))}</td>
